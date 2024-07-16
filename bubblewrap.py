@@ -8,6 +8,7 @@ import jax.scipy.stats
 from jax.scipy.stats import multivariate_normal as jmvn
 from scipy.stats import multivariate_normal as mvn
 from jax.scipy.special import logsumexp as lse
+from jax.scipy.linalg import solve_triangular
 from jax import nn, random
 
 
@@ -114,6 +115,7 @@ class Bubblewrap():
         self.sum_me = jit(sum_me)
         self.compute_L = jit(vmap(get_L, (0,0)))
         self.get_amax = jit(amax)
+        self.invert_L = jit(vmap(invert_l,(0)))
 
         ## for adam gradients
         self.m_mu = np.zeros_like(self.mu)
@@ -276,10 +278,35 @@ class Bubblewrap():
         self.m_A, self.v_A, self.log_A = single_adam(self.step, self.m_A, self.v_A, A, self.t, self.log_A)
 
 
+    def get_fisher_ub(self):
+
+        weights = self.alpha/np.sum(self.alpha)
+        weights = weights[:,None,None]
+        lInv = self.invert_l(self.L)
+        
+        prec = lInv @ lInv.transpose(0,2,1)
+        return np.trace(np.sum(weights * prec,axis=0))
+
+    def _get_precision(self):
+
+        lInv = self.invert_L(self.L)
+        return lInv.T @ lInv
+
+
+
 beta1 = 0.99
 beta2 = 0.999
 
+
+
 ### A ton of jitted functions for fast code execution
+@jit 
+def invert_l(L):
+
+    eye = np.eye(L.shape[-1])
+    return np.stack([solve_triangular(l,eye) for l in L],axis=0)
+
+
 
 @jit
 def single_adam(step, m, v, grad, t, val):
