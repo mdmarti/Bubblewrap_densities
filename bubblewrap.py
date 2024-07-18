@@ -115,7 +115,7 @@ class Bubblewrap():
         self.sum_me = jit(sum_me)
         self.compute_L = jit(vmap(get_L, (0,0)))
         self.get_amax = jit(amax)
-        self.invert_L = jit(vmap(invert_l,(0)))
+        self.invert_L = jit(vmap(invert_l,(0))) #jit
 
         ## for adam gradients
         self.m_mu = np.zeros_like(self.mu)
@@ -289,8 +289,9 @@ class Bubblewrap():
 
     def _get_precision(self):
 
+        #jax.debug.print("shape of L: {x}",x=self.L.shape)
         lInv = self.invert_L(self.L)
-        return lInv.T @ lInv
+        return lInv.transpose(0,2,1) @ lInv
 
 
 
@@ -303,8 +304,10 @@ beta2 = 0.999
 @jit 
 def invert_l(L):
 
+    #jax.debug.print("shape of L now:{x} ",x=L.shape)
     eye = np.eye(L.shape[-1])
-    return np.stack([solve_triangular(l,eye) for l in L],axis=0)
+    return solve_triangular(L,eye)
+    #return np.stack([solve_triangular(l,eye) for l in L],axis=0)
 
 
 
