@@ -282,9 +282,9 @@ class Bubblewrap():
 
         weights = self.alpha/np.sum(self.alpha)
         weights = weights[:,None,None]
-        lInv = self.invert_l(self.L)
+        #lInv = self.invert_L(self.L)
         
-        prec = lInv @ lInv.transpose(0,2,1)
+        prec = self._get_precision()#lInv @ lInv.transpose(0,2,1)
         return np.trace(np.sum(weights * prec,axis=0))
 
     def _get_precision(self):
