@@ -107,6 +107,7 @@ class Bubblewrap():
 
         ## Other jitted functions
         self.logB_jax = jit(vmap(single_logB, in_axes=(None, 0, 0, 0)))
+        self.B_jax = jit(vmap(single_B,in_axes=(None,0,0,0)))
         self.expB_jax = jit(expB)
         self.update_internal_jax = jit(update_internal)
         self.kill_nodes = jit(kill_dead_nodes)
@@ -258,12 +259,15 @@ class Bubblewrap():
         return node
 
 
-    def grad_Q(self):
+    def grad_Q(self,mode='fit'):
 
         divisor = 1+self.sum_me(self.En)
         (grad_mu, grad_L, grad_L_diag, grad_A) = self.grad_all(self.mu, self.L_lower, self.L_diag, self.log_A, self.S1, self.lam, self.S2, self.n_obs, self.En, self.nu, self.sigma_orig, self.beta, self.d, self.mu_orig)
 
-        self.run_adam(grad_mu/divisor, grad_L/divisor, grad_L_diag/divisor, grad_A/divisor)
+        if mode == 'fit':
+            self.run_adam(grad_mu/divisor, grad_L/divisor, grad_L_diag/divisor, grad_A/divisor)
+        elif mode == 'update':
+            self.run_adam_fixedmu(grad_L/divisor, grad_L_diag/divisor, grad_A/divisor)
         
         self.A = sm(self.log_A)
 
@@ -277,6 +281,11 @@ class Bubblewrap():
         self.m_L_diag, self.v_L_diag, self.L_diag = single_adam(self.step, self.m_L_diag, self.v_L_diag, L_diag, self.t, self.L_diag)
         self.m_A, self.v_A, self.log_A = single_adam(self.step, self.m_A, self.v_A, A, self.t, self.log_A)
 
+    def run_adam_fixedmu(self, L, L_diag, A):
+        ## inputs are gradients
+        self.m_L, self.v_L, self.L_lower = single_adam(self.step, self.m_L, self.v_L, L, self.t, self.L_lower)
+        self.m_L_diag, self.v_L_diag, self.L_diag = single_adam(self.step, self.m_L_diag, self.v_L_diag, L_diag, self.t, self.L_diag)
+        self.m_A, self.v_A, self.log_A = single_adam(self.step, self.m_A, self.v_A, A, self.t, self.log_A)
 
     def get_fisher_ub(self):
 
@@ -290,8 +299,12 @@ class Bubblewrap():
     def _get_precision(self):
 
         #jax.debug.print("shape of L: {x}",x=self.L.shape)
-        lInv = self.invert_L(self.L)
-        return lInv.transpose(0,2,1) @ lInv
+        #lInv = self.invert_L(self.L)
+        return self.L.transpose(0,2,1) @ self.L
+    
+    def posterior(self,x):
+
+        likelihoods = self.B_jax
 
 
 
@@ -375,6 +388,12 @@ def Q_j(mu, L_lower, L_diag, log_A, S1, lam, S2, n_obs, En, nu, sigma_orig, beta
     summed += (-1/2) * (nu + n_obs + d + 2) * ld
     summed += np.sum((En + beta - 1) * nn.log_softmax(log_A)) 
     return -np.sum(summed)
+
+@jit
+def single_B(x,mu,L,L_diag):
+    n = mu.shape[0]
+    B = np.exp(-(np.linalg.norm((x-mu)@L)**2) /2)/(2*np.pi)**(n/2) * np.exp(np.sum(L_diag))
+    return B
 
 @jit
 def single_logB(x, mu, L, L_diag):
