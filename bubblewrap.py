@@ -54,6 +54,7 @@ class Bubblewrap():
 
         com = center_mass(self.mu)
         if len(self.obs.saved_obs) >= self.N:
+            print("initializing using kmeans")
             km = KMeans(n_clusters=self.N,max_iter=50)
             km.fit(self.obs.saved_obs)
             obs_com = km.cluster_centers_
