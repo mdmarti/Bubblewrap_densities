@@ -10,6 +10,7 @@ from scipy.stats import multivariate_normal as mvn
 from jax.scipy.special import logsumexp as lse
 from jax.scipy.linalg import solve_triangular
 from jax import nn, random
+from sklearn.cluster import KMeans
 
 
 epsilon = 1e-10
@@ -52,7 +53,11 @@ class Bubblewrap():
         self.mu = np.zeros((self.N, self.d))
 
         com = center_mass(self.mu)
-        if len(self.obs.saved_obs) > 1:
+        if len(self.obs.saved_obs) >= self.N:
+            km = KMeans(n_clusters=self.N,max_iter=50)
+            km.fit(self.obs.saved_obs)
+            obs_com = km.cluster_centers_
+        elif len(self.obs.saved_obs) > 1:
             obs_com = center_mass(self.obs.saved_obs)
         else:
             ## this section for if we init nodes with no data
